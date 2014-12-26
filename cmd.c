@@ -9,6 +9,8 @@ void create_cmd(char* chaine, cmd *c) {
 	c->cmd_initiale = strdup(chaine);
 	parse_membres(chaine, c); 
 	aff_membres(c);
+	parse_ip_port(c);
+	aff_ip_port(c);
 	parse_args(c);
 	aff_args(c);
 	parse_all_redirection(c);
@@ -91,6 +93,82 @@ void free_membres(cmd *ma_cmd) {
 	ma_cmd->nb_cmd_membres = 0;
 }
 
+void parse_ip_port(cmd* c) {
+	int i;
+	c->server_ip = (char**)malloc(c->nb_cmd_membres * sizeof(char*));
+	c->server_port = (char**)malloc(c->nb_cmd_membres * sizeof(char*));
+	for ( i = 0; i < c->nb_cmd_membres; i ++ ) {
+		c->server_ip[i] = NULL;
+		c->server_port[i] = NULL;
+
+		trim(c->cmd_membres[i]);
+		//s:iii.iii.iii.iii:pppp
+		if ( strncmp(c->cmd_membres[i], "s:", 2 ) == 0 ) {
+			int start_i= 2;
+			int end_i = 2;
+			int point_count = 0;
+			for ( end_i  = start_i; c->cmd_membres[i][end_i] != '\0'; 
+					end_i ++ ) {
+				if (c->cmd_membres[i][end_i] != '.' && c->cmd_membres[i][end_i] != ':' &&
+						c->cmd_membres[i][end_i] != ' ' && !isdigit(c->cmd_membres[i][end_i]) ) {
+					perror("Faux format de IP ou Port\n");
+					break;
+				}
+				if (c->cmd_membres[i][end_i] == '.') {
+					point_count ++;
+				} 
+				//get iii.iii.iii.iii
+				if (c->cmd_membres[i][end_i] == ':' && point_count == 3) {
+					c->server_ip[i]= strndup(c->cmd_membres[i] + start_i, end_i - start_i);
+					start_i = end_i;
+				}
+				//get :pppp
+				if (c->cmd_membres[i][end_i] == ' ' && point_count == 3) {
+					c->server_port[i] = strndup( c->cmd_membres[i] + start_i + 1, end_i - start_i - 1);
+
+					//change c->cmd_membres[i]
+					int new_membre_len = strlen(c->cmd_membres[i]) - end_i - 1; 
+					int j;
+					for ( j = 0; j < new_membre_len; j ++ ) {
+						c->cmd_membres[i][j] = c->cmd_membres[i][end_i+j+1];
+					}
+					c->cmd_membres[i][j] = '\0';
+					break;
+				}
+			}
+			if ( c->server_ip[i] == NULL || c->server_port[i] == NULL ) {
+				perror("Faux format de IP ou Port\n");
+				break;
+			}
+		}
+	}
+}
+
+void free_ip_port(cmd* c) {
+	int i;
+	for ( i = 0; i < c->nb_cmd_membres; i ++ ) {
+		free(c->server_ip[i]);
+		free(c->server_port[i]);
+	}
+	free(c->server_ip);
+	free(c->server_port);
+}
+
+void aff_ip_port(cmd* c) {
+	int i;
+	for ( i = 0; i < c->nb_cmd_membres; i ++ ) {
+		if ( c->server_ip[i] == NULL ) {
+			printf("SERVER IP: NULL\n");
+		} else {
+			printf("SERVER IP: \"%s\"\n", c->server_ip[i]);
+		}
+		if ( c->server_port[i] == NULL ) {
+			printf("SERVER PORT: NULL\n");
+		} else {
+			printf("SERVER PORT: \"%s\"\n", c->server_port[i]);
+		}
+	}
+}
 void parse_args(cmd* c) {
 	char* str_no_redir;
 	char* token;

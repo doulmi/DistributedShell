@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <pwd.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <stdlib.h>
 
@@ -20,9 +22,35 @@ int main(int argc, char** argv)
 	char hostname[256];
 	char workingdirectory[256];
 
+	int id_socket = socket(AF_INET, SOCK_STREAM, 0);
+	int fd_socket;
+	struct sockaddr_in servaddr;
+	socklen_t taille;
+
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(1234);
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	//bind, succes return 0, error return -1
+	if (bind(id_socket, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1) {
+		perror("bind error\n");
+		exit(1);
+	}
+
+	if (listen(id_socket, 10) == -1) {
+		perror("listen error\n");
+		exit(1);
+	}
     using_history();
 	while(ret != MYSHELL_FCT_EXIT)
 	{
+		taille = sizeof(struct sockaddr_in);
+		fd_socket = accept(id_socket, (struct sockaddr*)&servaddr, &taille);
+		
+		pid_t pid;
+		char recvbuf[1024];
+		int nbytes = recv(fd_socket, recvbuf, sizeof(recvbuf), 0);
+		printf("%d bytes read: %s", nbytes, recvbuf);
 		infos=getpwuid(getuid());
 		gethostname(hostname, 256);
 		getcwd(workingdirectory, 256);

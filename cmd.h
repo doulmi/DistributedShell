@@ -37,7 +37,7 @@ void free_membres(cmd *ma_cmd);
 
 void parse_ip_port(cmd *c);
 void free_ip_port(cmd *c);
-void parse_ip_port(cmd *c);
+void aff_ip_port(cmd *c);
 
 void aff_args(cmd *c);
 void free_args(cmd *c);

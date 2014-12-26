@@ -20,10 +20,8 @@ void exec_cd(char* filename) {
 }
 
 int exec_inside_command(char* cmd_str) { 
-    trim(cmd_str);
-    if ( ! strcmp(cmd_str, "exit") ) {
-        exit(0);
-    } else if( ! strncmp(cmd_str, "cd ", 3) ) { // "cd " not "cd"
+	trim(cmd_str);
+    if( ! strncmp(cmd_str, "cd ", 3) ) { // "cd " not "cd"
         exec_cd(cmd_str+3); 
         return 1;
     }
@@ -41,8 +39,8 @@ int get_redirect_fd( cmd* ma_cmd, int cmd_i, int type_redirec ) {
 }
 
 void time_over(int signo) {
-    perror("Ce processus depasse plein de temps, on s'arrete\n");
-    exit(1);
+    //perror("Ce processus depasse plein de temps, on s'arrete\n");
+    //exit(1);
 }
 
 int exec_commande(cmd* ma_cmd) {
