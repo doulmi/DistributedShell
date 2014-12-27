@@ -29,10 +29,6 @@ int main(int argc, char** argv)
 
 		sprintf(str, "{myshell}%s@%s:%s$ ", infos->pw_name, hostname, workingdirectory);
 		readlineptr = readline(str);
-        int line_len = strlen(readlineptr);
-        if ( readlineptr[line_len -1] == '\n') {
-            printf("is n");
-        }
 
 		if (!is_empty_str(readlineptr)) {
 			//quit command

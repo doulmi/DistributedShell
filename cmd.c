@@ -30,14 +30,13 @@ void trim(char* str) {
 	int pre_blanc_num = 0;
 	int post_blanc_num = 0;
 	int str_len = strlen(str);
-	while ( *(str+ pre_blanc_num) != '\0' && *(str + pre_blanc_num) == ' ' ) {
+	while ( *(str+ pre_blanc_num) != '\0' && isblank(*(str + pre_blanc_num))  ) {
 		pre_blanc_num ++;
 	}
 
 	int last_not_blanc = str_len - 1;
 	if ( pre_blanc_num != str_len ) {
-		while ( last_not_blanc >= 0 && 
-				*(str + last_not_blanc) == ' ' ) {
+		while ( last_not_blanc >= 0 && isblank(*(str + last_not_blanc)) ) {
 			post_blanc_num ++;
 			last_not_blanc --;
 		}
@@ -158,14 +157,14 @@ void aff_ip_port(cmd* c) {
 	int i;
 	for ( i = 0; i < c->nb_cmd_membres; i ++ ) {
 		if ( c->server_ip[i] == NULL ) {
-			printf("SERVER IP: NULL\n");
+			printf("server_ip[%d]: NULL\n", i);
 		} else {
-			printf("SERVER IP: \"%s\"\n", c->server_ip[i]);
+			printf("server_ip[%d]: \"%s\"\n", i, c->server_ip[i]);
 		}
 		if ( c->server_port[i] == NULL ) {
-			printf("SERVER PORT: NULL\n");
+			printf("server_port[%d]: NULL\n", i);
 		} else {
-			printf("SERVER PORT: \"%s\"\n", c->server_port[i]);
+			printf("server_port[%d]: \"%s\"\n", i, c->server_port[i]);
 		}
 	}
 }
