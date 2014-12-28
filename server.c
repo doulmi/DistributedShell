@@ -28,15 +28,22 @@ void* handle_connect(void* client_fd) {
 				ret = MYSHELL_FCT_EXIT;
 				break;
 			}
+
 			create_cmd(readlineptr, &mycmd);	
 
 			int stdout_fd = dup(1);
 			int changed_out_fd = dup2((int)client_fd, 1);
 
+			int stderr_fd = dup(1);
+			int changed_err_fd = dup2((int)client_fd, 1);
 			exec_commande(&mycmd);
 			destroy_cmd(&mycmd);
 
 			dup2(stdout_fd, changed_out_fd);
+			close(changed_out_fd);
+
+			dup2(stderr_fd, changed_err_fd);
+			close(changed_err_fd);
 		}
 		free(readlineptr);
 	}

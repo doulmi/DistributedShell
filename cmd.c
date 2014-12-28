@@ -8,12 +8,14 @@
 void create_cmd(char* chaine, cmd *c) {
 	c->cmd_initiale = strdup(chaine);
 	parse_membres(chaine, c); 
-	aff_membres(c);
 	parse_ip_port(c);
-	aff_ip_port(c);
 	parse_args(c);
-	aff_args(c);
 	parse_all_redirection(c);
+
+	//afficher
+	aff_membres(c);
+	aff_ip_port(c);
+	aff_args(c);
 	aff_all_redirection(c);
 }
 
@@ -131,6 +133,7 @@ void parse_ip_port(cmd* c) {
 					for ( j = 0; j < new_membre_len; j ++ ) {
 						c->cmd_membres[i][j] = c->cmd_membres[i][end_i+j+1];
 					}
+					c->cmd_membres[i] = realloc(c->cmd_membres[i], (new_membre_len + 1) * sizeof(char));
 					c->cmd_membres[i][j] = '\0';
 					break;
 				}
