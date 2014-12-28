@@ -99,13 +99,9 @@ int exec_commande(cmd* ma_cmd) {
 				server_fd[cmd_i] = get_server_fd(ma_cmd, cmd_i);	
 
 				send(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], strlen(ma_cmd->cmd_membres[cmd_i]), 0);
-				send(server_fd[cmd_i], "\n", 1, 0);
+				//send(server_fd[cmd_i], "\n", 1, 0);
 				char recvbuff[MAX_BUFF_SIZE];
-				int stdin_fd = dup(0);
-				int changed_in_fd = dup2(server_fd[cmd_i], 0);
-				char recvbuff[MAX_BUFF_SIZE];
-				int nbytes = read(0, recvbuff, sizeof(recvbuff)); 
-				dup2(stdin_fd, changed_in_fd);
+				int nbytes = recv(server_fd[cmd_i], recvbuff, sizeof(recvbuff), 0);
 				if (nbytes < 0) {
 					perror("recv error\n");	
 				} else {
@@ -162,10 +158,9 @@ int exec_commande(cmd* ma_cmd) {
 	//redirect stdin du dernier child_proc
     int stdin_fd= dup(0);
 	int last_child_proc_i = nb_cmd_membres - 1;
-	int changed_fd;
 
 	close(fd[last_child_proc_i][1]);
-	changed_fd = dup2(fd[last_child_proc_i][0],0);
+	dup2(fd[last_child_proc_i][0],0);
 	close(fd[last_child_proc_i][0]);
 
     //read the result of the command
@@ -177,29 +172,27 @@ int exec_commande(cmd* ma_cmd) {
 	//out redirection
 	int have_out_redirect = ma_cmd->redirection[last_child_proc_i][STDOUT] == NULL ? 0 : 1;
 	int stdout_fd = dup(1);
-	int changed_out_fd;
 	if ( have_out_redirect ) {
 		int out_fd = get_redirect_fd(ma_cmd, last_child_proc_i, STDOUT);
-		changed_out_fd = dup2(out_fd, 1);
+		dup2(out_fd, 1);
 		close(out_fd);
 	}
 
     //err redirection
     int stderr_fd = dup(2);
-    int changed_err_fd; 
 	int have_err_redirect = ma_cmd->redirection[last_child_proc_i][STDERR] == NULL ? 0 : 1;
     if ( have_err_redirect ) {
         int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDERR);
-        changed_err_fd = dup2(out_fd, 2);
+        dup2(out_fd, 2);
         close(out_fd);
     }
 
 	printf("%s",result);
 
 	//reback redirection
-    dup2(stderr_fd, changed_err_fd);
-	dup2(stdout_fd, changed_out_fd);
-	dup2(stdin_fd, changed_fd);
+    dup2(stderr_fd, 2);
+	dup2(stdout_fd, 1);
+	dup2(stdin_fd, 0);
 
 	//free
 	free(child_procs);

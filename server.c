@@ -13,42 +13,30 @@
 #define MYSHELL_FCT_EXIT 0
 void* handle_connect(void* client_fd) {
 	cmd mycmd;
-	int stdin_fd = dup(0);
-	int changed_stdin_fd = dup2((int)client_fd, 0);
-	char str[1024];
-	char* readlineptr;
-
-	int ret = MYSHELL_CMD_OK;
-	while( ret != MYSHELL_FCT_EXIT ) {
-		readlineptr = readline(str);
-		trim(readlineptr);
-		if (!is_empty_str(readlineptr)) {
-			//quit command
-			if ( strcmp(readlineptr, "exit") == 0 ) {
-				ret = MYSHELL_FCT_EXIT;
-				break;
-			}
-
-			create_cmd(readlineptr, &mycmd);	
-
-			int stdout_fd = dup(1);
-			int changed_out_fd = dup2((int)client_fd, 1);
-
-			int stderr_fd = dup(1);
-			int changed_err_fd = dup2((int)client_fd, 1);
-			exec_commande(&mycmd);
-			destroy_cmd(&mycmd);
-
-			dup2(stdout_fd, changed_out_fd);
-			close(changed_out_fd);
-
-			dup2(stderr_fd, changed_err_fd);
-			close(changed_err_fd);
-		}
-		free(readlineptr);
+	char readlineptr[2048];
+	int nbytes = recv((int)client_fd, readlineptr, sizeof(readlineptr), 0);
+	if ( nbytes < 0 ) {
+		printf("recv error\n");
+		pthread_exit(NULL);
 	}
-	dup2(changed_stdin_fd, stdin_fd);
-	close(changed_stdin_fd);
+	printf("%d bytes read: %s\n", nbytes, readlineptr);
+	trim(readlineptr);
+	if (!is_empty_str(readlineptr)) {
+		create_cmd(readlineptr, &mycmd);	
+
+		int stdout_fd = dup(1);
+		dup2((int)client_fd, 1);
+		int stderr_fd = dup(2);
+		dup2((int)client_fd, 2);
+
+		exec_commande(&mycmd);
+		destroy_cmd(&mycmd);
+
+
+		dup2(stdout_fd, 1);
+		dup2(stderr_fd, 2);
+	}
+	printf("client %d quit\n", (int)client_fd);
 	pthread_exit(NULL);
 }
 
@@ -75,9 +63,9 @@ int main(int argc, char** argv)
 
 	taille = sizeof(struct sockaddr_in);
 	while(1) {
-		printf("wait for a client\n");
 		int fd_socket = accept(id_socket, (struct sockaddr*)&servaddr, &taille);
 		pthread_t thread;
+		printf("a client connect :%d\n", fd_socket);
 		int rc = pthread_create(&thread, NULL, handle_connect, (void*)fd_socket);
 		if (rc) {
 			perror("create thread error\n");
