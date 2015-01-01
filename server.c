@@ -11,33 +11,35 @@
   
 #define MYSHELL_CMD_OK 1
 #define MYSHELL_FCT_EXIT 0
-void* handle_connect(void* client_fd) {
+void handle_connect(int client_fd) {
 	cmd mycmd;
-	char readlineptr[2048];
-	int nbytes = recv((int)client_fd, readlineptr, sizeof(readlineptr), 0);
+	char readlineptr[256];
+	int nbytes = read(client_fd, readlineptr, sizeof(readlineptr));
 	if ( nbytes < 0 ) {
 		printf("recv error\n");
-		pthread_exit(NULL);
 	}
 	printf("%d bytes read: %s\n", nbytes, readlineptr);
 	trim(readlineptr);
 	if (!is_empty_str(readlineptr)) {
 		create_cmd(readlineptr, &mycmd);	
 
-		int stdout_fd = dup(1);
-		dup2((int)client_fd, 1);
-		int stderr_fd = dup(2);
-		dup2((int)client_fd, 2);
+		int stdin_fd = dup(0);
+		dup2(client_fd, 0);
+//		int stdout_fd = dup(1);
+//		dup2(client_fd, 1);
+//		int stderr_fd = dup(2);
+//		dup2(client_fd, 2);
 
 		exec_commande(&mycmd);
+
+		dup2(stdin_fd, 0);
+//		dup2(stdout_fd, 1);
+//		dup2(stderr_fd, 2);
+
 		destroy_cmd(&mycmd);
-
-
-		dup2(stdout_fd, 1);
-		dup2(stderr_fd, 2);
 	}
+
 	printf("client %d quit\n", (int)client_fd);
-	pthread_exit(NULL);
 }
 
 int main(int argc, char** argv)
@@ -49,6 +51,7 @@ int main(int argc, char** argv)
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(1234);
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	printf("%d\n", getpid());
 
 	//bind, succes return 0, error return -1
 	if (bind(id_socket, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1) {
@@ -64,15 +67,15 @@ int main(int argc, char** argv)
 	taille = sizeof(struct sockaddr_in);
 	while(1) {
 		int fd_socket = accept(id_socket, (struct sockaddr*)&servaddr, &taille);
-		pthread_t thread;
+
 		printf("a client connect :%d\n", fd_socket);
-		int rc = pthread_create(&thread, NULL, handle_connect, (void*)fd_socket);
-		if (rc) {
-			perror("create thread error\n");
-			continue;
+		pid_t pid = fork();
+		if ( pid == 0 ) {
+			handle_connect(fd_socket);
+			break;
 		}
+		close(fd_socket);
 	}
 
-	pthread_exit(NULL);
 	return 0;
 }

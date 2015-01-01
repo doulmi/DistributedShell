@@ -97,11 +97,35 @@ int exec_commande(cmd* ma_cmd) {
 			int should_send_to_server = ma_cmd->server_ip[cmd_i] == NULL ? 0 : 1;
 			if ( should_send_to_server ) {
 				server_fd[cmd_i] = get_server_fd(ma_cmd, cmd_i);	
-
-				send(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], strlen(ma_cmd->cmd_membres[cmd_i]), 0);
-				//send(server_fd[cmd_i], "\n", 1, 0);
+				//send(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], strlen(ma_cmd->cmd_membres[cmd_i]), 0);
+				write(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], 256);
+				//fflush(server_fd[cmd_i]);
 				char recvbuff[MAX_BUFF_SIZE];
-				int nbytes = recv(server_fd[cmd_i], recvbuff, sizeof(recvbuff), 0);
+				if ( cmd_i != 0 ) {
+					int continuation = 1;
+					char buff[MAX_BUFF_SIZE];
+					int nbytes2;
+					while (continuation) {
+						nbytes2 = read(fd[cmd_i-1][0], buff, sizeof(buff) );
+						printf("%d bytes read '%s'\n", nbytes2, buff);
+						if ( nbytes2 > 0 ) {
+							write(server_fd[cmd_i], buff, strlen(buff));
+						} else {
+							continuation = 0;
+						}
+					}
+					if (fflush(server_fd[cmd_i]) != 0) {
+						perror("error\n");
+						exit(1);
+					} else {
+						printf("send succes\n");
+					}
+				}
+				printf("bytes read\n");
+				memset(recvbuff, 0, sizeof(recvbuff));
+				int nbytes = read(server_fd[cmd_i], recvbuff, sizeof(recvbuff));
+				printf("%d bytes read: %s\n", nbytes, recvbuff);
+				fflush(1);
 				if (nbytes < 0) {
 					perror("recv error\n");	
 				} else {
@@ -110,6 +134,7 @@ int exec_commande(cmd* ma_cmd) {
 					dup2(fd[cmd_i][1],1);
 					close(fd[cmd_i][1]);
 					printf("%s", recvbuff);
+					fflush(1);
 				}
 			} else {
 				if ( cmd_i != 0 ) {
