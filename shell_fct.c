@@ -4,6 +4,7 @@
 #include<sys/stat.h>
 #include<stdlib.h>
 #include<fcntl.h>
+#include<stdlib.h>
 #include<unistd.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
@@ -11,7 +12,7 @@
 
 #include"shell_fct.h"
 #define MAX_BUFF_SIZE 32768
-#define MAX_SECOND 30
+#define MAX_SECOND 10
 
 void exec_cd(char* filename) {
     struct stat sb;
@@ -42,10 +43,6 @@ int get_redirect_fd( cmd* ma_cmd, int cmd_i, int type_redirec ) {
     return out_fd;
 }
 
-void time_over(int signo) {
-    //perror("Ce processus depasse plein de temps, on s'arrete\n");
-    //exit(1);
-}
 
 int get_server_fd(cmd* ma_cmd, int cmd_i) {
 	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -65,174 +62,197 @@ int get_server_fd(cmd* ma_cmd, int cmd_i) {
 	return server_fd;
 }
 
+void time_over(int signo) {
+    printf("Ce processus %d depasse plein de temps, on s'arrete\n", getpid());
+	char pidStr[25];
+	sprintf(pidStr, "%d", getpid());
+	execlp("pkill", "pkill", "-TERM", "-P", pidStr, NULL);
+}
+
 int exec_commande(cmd* ma_cmd) {
-	pid_t* child_procs;
-	int** fd;
-	int* server_fd;
-	int nb_cmd_membres = ma_cmd->nb_cmd_membres;
+	int tube[2];
+	pid_t pid;
+	pid = fork();
+	if ( pid == 0 ) {
+		printf("fils id: %d", getpid());
+		pid_t* child_procs;
+		int** fd;
+		int* server_fd;
+		int nb_cmd_membres = ma_cmd->nb_cmd_membres;
 
-    signal(SIGALRM, time_over);
-    //set garde de chien
-    alarm(MAX_SECOND);
-    
-	//initial fd et child_procs et server_fd
-	fd = (int**)malloc(nb_cmd_membres * sizeof(int*) );
-	int i;
-	for ( i = 0; i < nb_cmd_membres; i ++ ) {
-		fd[i] = (int*)malloc(2 * sizeof(int));
-		pipe(fd[i]);
-	}
-	child_procs = (pid_t*)malloc(nb_cmd_membres * sizeof(pid_t));
+		//set garde de chien
+		signal(SIGALRM, time_over);
+		alarm(MAX_SECOND);
+		
+		//initial fd et child_procs et server_fd
+		fd = (int**)malloc(nb_cmd_membres * sizeof(int*) );
+		int i;
+		for ( i = 0; i < nb_cmd_membres; i ++ ) {
+			fd[i] = (int*)malloc(2 * sizeof(int));
+			pipe(fd[i]);
+		}
+		child_procs = (pid_t*)malloc(nb_cmd_membres * sizeof(pid_t));
 
-	server_fd = (int*)malloc(nb_cmd_membres * sizeof(int));
-	for ( i = 0; i < nb_cmd_membres; i ++ ) {
-		server_fd[i] = -1;
-	}
+		server_fd = (int*)malloc(nb_cmd_membres * sizeof(int));
+		for ( i = 0; i < nb_cmd_membres; i ++ ) {
+			server_fd[i] = -1;
+		}
 
-	//creer child_procs processus et executer les commandes
-	int cmd_i;
-	for ( cmd_i = 0; cmd_i < nb_cmd_membres; cmd_i ++ ) {
-		child_procs[cmd_i]=fork();
-		if(child_procs[cmd_i]==0) {
-			int should_send_to_server = ma_cmd->server_ip[cmd_i] == NULL ? 0 : 1;
-			if ( should_send_to_server ) {
-				server_fd[cmd_i] = get_server_fd(ma_cmd, cmd_i);	
-				//send(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], strlen(ma_cmd->cmd_membres[cmd_i]), 0);
-				write(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], 256);
-				//fflush(server_fd[cmd_i]);
-				char recvbuff[MAX_BUFF_SIZE];
-				if ( cmd_i != 0 ) {
-					int continuation = 1;
-					char buff[MAX_BUFF_SIZE];
-					int nbytes2;
-					while (continuation) {
-						nbytes2 = read(fd[cmd_i-1][0], buff, sizeof(buff) );
-						printf("%d bytes read '%s'\n", nbytes2, buff);
-						if ( nbytes2 > 0 ) {
-							write(server_fd[cmd_i], buff, strlen(buff));
+		//creer child_procs processus et executer les commandes
+		int cmd_i;
+		for ( cmd_i = 0; cmd_i < nb_cmd_membres; cmd_i ++ ) {
+			child_procs[cmd_i]=fork();
+			if(child_procs[cmd_i]==0) {
+				/*
+				while(1) {
+					int lll = 0;
+					printf("Hello  %d\n", lll);
+					lll ++;
+					sleep(1);
+				}
+				*/
+				int should_send_to_server = ma_cmd->server_ip[cmd_i] == NULL ? 0 : 1;
+				if ( should_send_to_server ) {
+					server_fd[cmd_i] = get_server_fd(ma_cmd, cmd_i);	
+					//send(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], strlen(ma_cmd->cmd_membres[cmd_i]), 0);
+					write(server_fd[cmd_i], ma_cmd->cmd_membres[cmd_i], 256);
+					//fflush(server_fd[cmd_i]);
+					char recvbuff[MAX_BUFF_SIZE];
+					if ( cmd_i != 0 ) {
+						int continuation = 1;
+						char buff[MAX_BUFF_SIZE];
+						int nbytes2;
+						while (continuation) {
+							nbytes2 = read(fd[cmd_i-1][0], buff, sizeof(buff) );
+							printf("%d bytes read '%s'\n", nbytes2, buff);
+							if ( nbytes2 > 0 ) {
+								write(server_fd[cmd_i], buff, strlen(buff));
+							} else {
+								continuation = 0;
+							}
+						}
+						if (fflush(server_fd[cmd_i]) != 0) {
+							perror("error\n");
+							exit(1);
 						} else {
-							continuation = 0;
+							printf("send succes\n");
 						}
 					}
-					if (fflush(server_fd[cmd_i]) != 0) {
-						perror("error\n");
-						exit(1);
-					} else {
-						printf("send succes\n");
-					}
-				}
-				printf("bytes read\n");
-				memset(recvbuff, 0, sizeof(recvbuff));
-				int nbytes = read(server_fd[cmd_i], recvbuff, sizeof(recvbuff));
-				printf("%d bytes read: %s\n", nbytes, recvbuff);
-				fflush(1);
-				if (nbytes < 0) {
-					perror("recv error\n");	
-				} else {
-					recvbuff[nbytes] = '\0';
-					close(fd[cmd_i][0]);
-					dup2(fd[cmd_i][1],1);
-					close(fd[cmd_i][1]);
-					printf("%s", recvbuff);
+					printf("bytes read\n");
+					memset(recvbuff, 0, sizeof(recvbuff));
+					int nbytes = read(server_fd[cmd_i], recvbuff, sizeof(recvbuff));
+					printf("%d bytes read: %s\n", nbytes, recvbuff);
 					fflush(1);
-				}
-			} else {
-				if ( cmd_i != 0 ) {
-					close(fd[cmd_i - 1][1]);
-					dup2(fd[cmd_i - 1][0],0);
-					close(fd[cmd_i - 1][0]);
-				}
-
-				//s'il y a de 'in redirection' 
-				int have_in_redirect = ma_cmd->redirection[cmd_i][STDIN] == NULL ? 0 : 1;
-				if ( have_in_redirect ) {
-					int in_fd = open(ma_cmd->redirection[cmd_i][STDIN], O_RDONLY, 0666);
-					dup2(in_fd,0);
-					close(in_fd);
-				}
-
-				int have_out_redirect = ma_cmd->redirection[cmd_i][STDOUT] == NULL ? 0 : 1;
-				int have_err_redirect = ma_cmd->redirection[cmd_i][STDERR] == NULL ? 0 : 1;
-				if ( have_out_redirect || have_err_redirect ) {
-					if ( have_out_redirect ) {
-						//s'il y a de 'out redirection' 
-						int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDOUT);
-						dup2(out_fd, 1);
-						close(out_fd);
-					} 
-					if ( have_err_redirect ) {
-						//s'il y a de 'err redirection'
-						int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDERR);
-						dup2(out_fd, 2);
-						close(out_fd);
+					if (nbytes < 0) {
+						perror("recv error\n");	
+					} else {
+						recvbuff[nbytes] = '\0';
+						close(fd[cmd_i][0]);
+						dup2(fd[cmd_i][1],1);
+						close(fd[cmd_i][1]);
+						printf("%s", recvbuff);
+						fflush(1);
 					}
 				} else {
-					close(fd[cmd_i][0]);
-					dup2(fd[cmd_i][1],1);
-					close(fd[cmd_i][1]);
+					if ( cmd_i != 0 ) {
+						close(fd[cmd_i - 1][1]);
+						dup2(fd[cmd_i - 1][0],0);
+						close(fd[cmd_i - 1][0]);
+					}
+
+					//s'il y a de 'in redirection' 
+					int have_in_redirect = ma_cmd->redirection[cmd_i][STDIN] == NULL ? 0 : 1;
+					if ( have_in_redirect ) {
+						int in_fd = open(ma_cmd->redirection[cmd_i][STDIN], O_RDONLY, 0666);
+						dup2(in_fd,0);
+						close(in_fd);
+					}
+
+					int have_out_redirect = ma_cmd->redirection[cmd_i][STDOUT] == NULL ? 0 : 1;
+					int have_err_redirect = ma_cmd->redirection[cmd_i][STDERR] == NULL ? 0 : 1;
+					if ( have_out_redirect || have_err_redirect ) {
+						if ( have_out_redirect ) {
+							//s'il y a de 'out redirection' 
+							int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDOUT);
+							dup2(out_fd, 1);
+							close(out_fd);
+						} 
+						if ( have_err_redirect ) {
+							//s'il y a de 'err redirection'
+							int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDERR);
+							dup2(out_fd, 2);
+							close(out_fd);
+						}
+					} else {
+						close(fd[cmd_i][0]);
+						dup2(fd[cmd_i][1],1);
+						close(fd[cmd_i][1]);
+					}
+					execvp(ma_cmd->cmd_args[cmd_i][0], ma_cmd->cmd_args[cmd_i]);
 				}
-				execvp(ma_cmd->cmd_args[cmd_i][0], ma_cmd->cmd_args[cmd_i]);
+			}
+			if ( cmd_i != 0 && cmd_i != nb_cmd_membres ) {
+				close(fd[cmd_i - 1][1]);
+				close(fd[cmd_i - 1][0]);
 			}
 		}
-		if ( cmd_i != 0 && cmd_i != nb_cmd_membres ) {
-			close(fd[cmd_i - 1][1]);
-			close(fd[cmd_i - 1][0]);
+
+		//redirect stdin du dernier child_proc
+		int stdin_fd= dup(0);
+		int last_child_proc_i = nb_cmd_membres - 1;
+
+		close(fd[last_child_proc_i][1]);
+		dup2(fd[last_child_proc_i][0],0);
+		close(fd[last_child_proc_i][0]);
+
+		//read the result of the command
+		int nbytes;
+		char result[MAX_BUFF_SIZE];
+		nbytes = read(0,result,sizeof(result));
+		result[nbytes] = '\0';
+
+		//out redirection
+		int have_out_redirect = ma_cmd->redirection[last_child_proc_i][STDOUT] == NULL ? 0 : 1;
+		int stdout_fd = dup(1);
+		if ( have_out_redirect ) {
+			int out_fd = get_redirect_fd(ma_cmd, last_child_proc_i, STDOUT);
+			dup2(out_fd, 1);
+			close(out_fd);
 		}
-	}
 
-	//redirect stdin du dernier child_proc
-    int stdin_fd= dup(0);
-	int last_child_proc_i = nb_cmd_membres - 1;
-
-	close(fd[last_child_proc_i][1]);
-	dup2(fd[last_child_proc_i][0],0);
-	close(fd[last_child_proc_i][0]);
-
-    //read the result of the command
-	int nbytes;
-	char result[MAX_BUFF_SIZE];
-	nbytes = read(0,result,sizeof(result));
-	result[nbytes] = '\0';
-
-	//out redirection
-	int have_out_redirect = ma_cmd->redirection[last_child_proc_i][STDOUT] == NULL ? 0 : 1;
-	int stdout_fd = dup(1);
-	if ( have_out_redirect ) {
-		int out_fd = get_redirect_fd(ma_cmd, last_child_proc_i, STDOUT);
-		dup2(out_fd, 1);
-		close(out_fd);
-	}
-
-    //err redirection
-    int stderr_fd = dup(2);
-	int have_err_redirect = ma_cmd->redirection[last_child_proc_i][STDERR] == NULL ? 0 : 1;
-    if ( have_err_redirect ) {
-        int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDERR);
-        dup2(out_fd, 2);
-        close(out_fd);
-    }
-
-	printf("%s",result);
-
-	//reback redirection
-    dup2(stderr_fd, 2);
-	dup2(stdout_fd, 1);
-	dup2(stdin_fd, 0);
-
-	//free
-	free(child_procs);
-
-	for ( i = 0; i < nb_cmd_membres; i ++ ) {
-		free(fd[i]);
-	}
-	free(fd);
-
-	for ( i = 0; i < nb_cmd_membres; i ++ ) {
-		if ( server_fd[i] != -1 ) {
-			close(server_fd[i]);
+		//err redirection
+		int stderr_fd = dup(2);
+		int have_err_redirect = ma_cmd->redirection[last_child_proc_i][STDERR] == NULL ? 0 : 1;
+		if ( have_err_redirect ) {
+			int out_fd = get_redirect_fd(ma_cmd, cmd_i, STDERR);
+			dup2(out_fd, 2);
+			close(out_fd);
 		}
-	}
-	free(server_fd);
 
+		printf("%s",result);
+
+		//reback redirection
+		dup2(stderr_fd, 2);
+		dup2(stdout_fd, 1);
+		dup2(stdin_fd, 0);
+
+		//free
+		free(child_procs);
+
+		for ( i = 0; i < nb_cmd_membres; i ++ ) {
+			free(fd[i]);
+		}
+		free(fd);
+
+		for ( i = 0; i < nb_cmd_membres; i ++ ) {
+			if ( server_fd[i] != -1 ) {
+				close(server_fd[i]);
+			}
+		}
+		free(server_fd);
+		exit(0);
+	} else {
+		wait(NULL);
+	}
 	return 0;
 }
