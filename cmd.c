@@ -13,10 +13,10 @@ void create_cmd(char* chaine, cmd *c) {
 	parse_all_redirection(c);
 
 	//afficher
-	aff_membres(c);
-	aff_ip_port(c);
-	aff_args(c);
-	aff_all_redirection(c);
+//	aff_membres(c);
+//	aff_ip_port(c);
+//	aff_args(c);
+//	aff_all_redirection(c);
 }
 
 void destroy_cmd(cmd *c) {

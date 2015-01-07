@@ -82,7 +82,8 @@ void freeFds( int** fd, int n ) {
 	free( fd );
 }
 int exec_commande(cmd* ma_cmd) {
-	if ( fork() == 0 ) {
+	pid_t pid = fork();
+	if ( pid == 0 ) {
 		int** fd;
 		int nb_cmd_membres = ma_cmd->nb_cmd_membres;
 
@@ -94,6 +95,7 @@ int exec_commande(cmd* ma_cmd) {
 		int i;
 		for ( i = 0; i < nb_cmd_membres; i ++ ) {
 			fd[i] = (int*)malloc(2 * sizeof(int));
+//			pipe(fd[i]);
 		}
 
 		//creer child_procs processus et executer les commandes
@@ -102,6 +104,12 @@ int exec_commande(cmd* ma_cmd) {
 			pipe(fd[cmd_i]);
 			if(fork()==0) {
 				int k;
+				/*
+				for ( k = 0; k < nb_cmd_membres && k != cmd_i && k != cmd_i - 1; k ++ ) {
+					close(fd[k][0] );
+					close(fd[k][1] );
+				}
+				*/
 				for ( k = 0; k < cmd_i - 1; k ++ ) {
 					close(fd[k][0] );
 					close(fd[k][1] );
@@ -119,7 +127,11 @@ int exec_commande(cmd* ma_cmd) {
 
 						if ( nbytes2 > 0 ) {
 							buff[nbytes2] = '\0';
-							write(server_fd, buff, nbytes2); 
+							if ( write(server_fd, buff, nbytes2) < 0 ) {
+								perror("write to server error\n");
+								exit(1);
+							}
+							printf("%d bytes read: %s\n", nbytes2, buff);
 						}
 						//pour dire qu'il n'y a plus de msg a envoyer au serveur, le serveur va commencer a traiter les messages
 						//mais en meme temps, le client peut recevoir les messages viennent du serveur
@@ -136,11 +148,12 @@ int exec_commande(cmd* ma_cmd) {
 					} else {
 						recvbuff[nbytes] = '\0';
 						if ( write(fd[cmd_i][1], recvbuff, nbytes) < 0 ) {
-							perror("write error");
+							perror("write pipe error");
 							exit(1);
 						}
 					}
 					close(fd[cmd_i][1]);
+					exit(0);
 				} else {
 					if ( cmd_i > 0 ) {
 						close(fd[cmd_i - 1][1]);
@@ -173,7 +186,8 @@ int exec_commande(cmd* ma_cmd) {
 						dup2(fd[cmd_i][1],1);
 						close(fd[cmd_i][1]);
 					}
-					freeFds(fd, nb_cmd_membres);
+
+					//freeFds(fd, nb_cmd_membres);
 					if ( execvp(ma_cmd->cmd_args[cmd_i][0], ma_cmd->cmd_args[cmd_i]) == -1 ) {
 						perror("Commande inconnue\n");
 						exit(1);
@@ -181,6 +195,7 @@ int exec_commande(cmd* ma_cmd) {
 				}
 			}
 			if ( cmd_i > 0 ) {
+				wait(NULL);
 				close(fd[cmd_i - 1][1]);
 				close(fd[cmd_i - 1][0]);
 			}
@@ -191,13 +206,18 @@ int exec_commande(cmd* ma_cmd) {
 		int nbytes;
 		char result[MAX_BUFF_SIZE];
 
+		wait(NULL);
 		close(fd[last_child_proc_i][1]);
 		nbytes = read(fd[last_child_proc_i][0],result,sizeof(result));
 		result[nbytes] = '\0';
 		close(fd[last_child_proc_i][0]);
 
-		printf("%s",result);
-		freeFds(fd, nb_cmd_membres);	
+		printf("%sjdksaldl",result);
+		for ( i = 0; i < nb_cmd_membres; i ++ ) {
+			free(fd[i]);
+		}
+		free( fd );
+
 		exit(0);
 	} else {
 		wait(NULL);
