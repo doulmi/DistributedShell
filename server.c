@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
- #include <sys/types.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <pwd.h>
 #include <netinet/in.h>
@@ -25,20 +25,21 @@ void handle_connect(int client_fd) {
 
 		int stdin_fd = dup(0);
 		dup2(client_fd, 0);
-//		int stdout_fd = dup(1);
-//		dup2(client_fd, 1);
-//		int stderr_fd = dup(2);
-//		dup2(client_fd, 2);
+		int stdout_fd = dup(1);
+		dup2(client_fd, 1);
+		int stderr_fd = dup(2);
+		dup2(client_fd, 2);
 
 		exec_commande(&mycmd);
 
 		dup2(stdin_fd, 0);
-//		dup2(stdout_fd, 1);
-//		dup2(stderr_fd, 2);
+		dup2(stdout_fd, 1);
+		dup2(stderr_fd, 2);
 
 		destroy_cmd(&mycmd);
 	}
 
+	close(client_fd);
 	printf("client %d quit\n", (int)client_fd);
 }
 
