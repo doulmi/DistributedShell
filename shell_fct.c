@@ -11,7 +11,7 @@
 #include<arpa/inet.h>
 
 #include"shell_fct.h"
-#define MAX_BUFF_SIZE 32768
+#define MAX_BUFF_SIZE 1024
 #define MAX_SECOND 10
 
 void exec_cd(char* filename) {
@@ -115,16 +115,22 @@ int exec_commande(cmd* ma_cmd) {
 						char buff[MAX_BUFF_SIZE];
 						int nbytes2;
 						close(fd[cmd_i-1][1]);
-						nbytes2 = read(fd[cmd_i-1][0], buff, sizeof(buff) );
+						do {
+							nbytes2 = read(fd[cmd_i-1][0], buff, sizeof(buff) );
+							if ( nbytes2 < 0 ) {
+								perror("recv error\n");	
+								exit(1);
+							} else {
+								buff[nbytes2] = '\0';
+								if ( write(server_fd, buff, nbytes2) < 0 ) {
+									perror("write to server error\n");
+									exit(1);
+								}
+							}
+						} while ( nbytes2 > 0 );
 						close(fd[cmd_i-1][0]);
 
-						if ( nbytes2 > 0 ) {
-							buff[nbytes2] = '\0';
-							if ( write(server_fd, buff, nbytes2) < 0 ) {
-								perror("write to server error\n");
-								exit(1);
-							}
-						}
+						
 						//pour dire qu'il n'y a plus de msg a envoyer au serveur, le serveur va commencer a traiter les messages
 						//mais en meme temps, le client peut recevoir les messages viennent du serveur
 						shutdown(server_fd, SHUT_WR);
@@ -132,19 +138,22 @@ int exec_commande(cmd* ma_cmd) {
 
 					close(fd[cmd_i][0]);
 					char recvbuff[MAX_BUFF_SIZE];
-					int nbytes = read(server_fd, recvbuff, sizeof(recvbuff));
-					close(server_fd);
-					if (nbytes < 0) {
-						perror("recv error\n");	
-						exit(1);
-					} else {
-						recvbuff[nbytes] = '\0';
-						if ( write(fd[cmd_i][1], recvbuff, nbytes) < 0 ) {
-							perror("write pipe error");
+					int nbytes;
+					do {
+						nbytes = read(server_fd, recvbuff, sizeof(recvbuff));
+						if (nbytes < 0) {
+							perror("recv error\n");	
 							exit(1);
+						} else {
+							recvbuff[nbytes] = '\0';
+							if ( write(fd[cmd_i][1], recvbuff, nbytes) < 0 ) {
+								perror("write pipe error");
+								exit(1);
+							}
 						}
-					}
+					} while ( nbytes > 0 );
 					close(fd[cmd_i][1]);
+					close(server_fd);
 					exit(0);
 				} else {
 					if ( cmd_i > 0 ) {
@@ -198,18 +207,24 @@ int exec_commande(cmd* ma_cmd) {
 		int nbytes;
 		char result[MAX_BUFF_SIZE];
 
-		wait(NULL);
 		close(fd[last_child_proc_i][1]);
-		nbytes = read(fd[last_child_proc_i][0],result,sizeof(result));
-		result[nbytes] = '\0';
+		do {
+			nbytes = read(fd[last_child_proc_i][0],result,sizeof(result));
+			if ( nbytes < 0 ) {
+				perror("read error\n");
+				exit(1);
+			} else {
+				result[nbytes] = '\0';
+				printf("%s",result);
+			}
+		} while (nbytes > 0);
 		close(fd[last_child_proc_i][0]);
 
-		printf("%s",result);
 		for ( i = 0; i < nb_cmd_membres; i ++ ) {
 			free(fd[i]);
 		}
-		free( fd );
 
+		free( fd );
 		exit(0);
 	} else {
 		wait(NULL);
