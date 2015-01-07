@@ -95,22 +95,15 @@ int exec_commande(cmd* ma_cmd) {
 		int i;
 		for ( i = 0; i < nb_cmd_membres; i ++ ) {
 			fd[i] = (int*)malloc(2 * sizeof(int));
-//			pipe(fd[i]);
+			pipe(fd[i]);
 		}
 
 		//creer child_procs processus et executer les commandes
 		int cmd_i;
 		for ( cmd_i = 0; cmd_i < nb_cmd_membres; cmd_i ++ ) {
-			pipe(fd[cmd_i]);
 			if(fork()==0) {
 				int k;
-				/*
 				for ( k = 0; k < nb_cmd_membres && k != cmd_i && k != cmd_i - 1; k ++ ) {
-					close(fd[k][0] );
-					close(fd[k][1] );
-				}
-				*/
-				for ( k = 0; k < cmd_i - 1; k ++ ) {
 					close(fd[k][0] );
 					close(fd[k][1] );
 				}
@@ -131,7 +124,6 @@ int exec_commande(cmd* ma_cmd) {
 								perror("write to server error\n");
 								exit(1);
 							}
-							printf("%d bytes read: %s\n", nbytes2, buff);
 						}
 						//pour dire qu'il n'y a plus de msg a envoyer au serveur, le serveur va commencer a traiter les messages
 						//mais en meme temps, le client peut recevoir les messages viennent du serveur
@@ -212,7 +204,7 @@ int exec_commande(cmd* ma_cmd) {
 		result[nbytes] = '\0';
 		close(fd[last_child_proc_i][0]);
 
-		printf("%sjdksaldl",result);
+		printf("%s",result);
 		for ( i = 0; i < nb_cmd_membres; i ++ ) {
 			free(fd[i]);
 		}
